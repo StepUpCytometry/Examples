@@ -129,8 +129,9 @@ flowframe_comped <- compensate(flowframe, TheComps[[1]])
 head(flowframe_comped@exprs, 10)
 ```
 
-# Visualizing (ggcyto)
 As you might be able to tell, FSC SSC parameters remain the same, while the values for the Fluorophore columns have been adjusted. This is due to no columns being present for FSC SSC Time etc. in the Spillover matrix. 
+
+# Visualizing (ggcyto)
 
 We can visualize this with the with the `r Biocpkg("ggcyto")` package to see the effects for the before vs. after:
 
