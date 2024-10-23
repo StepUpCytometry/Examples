@@ -38,7 +38,7 @@ library(BiocStyle)
 library(FlowSOM)
 ```
 
-For this example, I am using an .fcs file contained within the `r Biocpkg("flowSOM")` package's extdata folder. I find it using system.file, and then list.files to show the full path to it's location. Once it's located, I will load it into a flowframe via flowCore similar to what we can see in the Christopher Hall video. 
+For this example, I am using an .fcs file contained within the `r Biocpkg("FlowSOM")` package's extdata folder. I find it using system.file, and then list.files to show the full path to it's location. Once it's located, I will load it into a flowframe via flowCore similar to what we can see in the Christopher Hall video. 
 
 ```{r}
 #| code-fold: show
@@ -146,9 +146,10 @@ autoplot(flowframe_comped, x = "PE-Cy7-A", y = "PE-Texas Red-A", bins = 270) +
   scale_x_flowjo_biexp() + scale_y_flowjo_biexp() + theme_bw()
 ```
 
-Hope this helps clarify a little!!! Keep it up!
 
-# Bonus In the Weeds
+# Applying an External Compensation Matrix. 
+
+The above works great when the acquisition software already stored the compensation matrix in the SPILL keyword. But what happens when it is not there, or we want to apply an external compensation matrix? It can be done, but there is a bit more data-tidying that needs to be done first to make the .csv output from FlowJo compatible with the matrix format flowCore stores FILL as. To save someone who is just getting started a headache, here is a worked out example below: 
 
 If we look closer at what type of object is returned by spillover, we can see that the initial command is returning three list:
 
@@ -166,6 +167,77 @@ TheComps[[1]]
 
 class(TheComps[[1]])
 ```
+
+In the case of the FlowSOM example file, the compensation applied appears to be mostly correct. The closest example to an overcompensation was the following:
+
+```{r}
+#| code-fold: show
+autoplot(flowframe_comped, x = "Qdot 605-A", y = "Alexa Fluor 700-A", bins = 270) +
+  scale_x_flowjo_biexp() + scale_y_flowjo_biexp() + theme_bw()
+```
+In FlowJo, I edited the compensation matrix and then hit Save Matrix and saved as a .csv. This can then be imported into R on an individual computer something similar to as follows:
+
+```{r}
+#| eval: FALSE
+#| code-show: TRUE
+# Set Location for your own folder
+Location <- file.path("C:", "Users", "StepUpCytometry", "Desktop", "MyCompensations")
+TheMatrix <- list.files(Location, pattern = ".csv", full.names = TRUE)
+MyMatrixOfInterest <- TheMatrix[4] # Ie, the 4th .csv file in the Matrix list above
+```
+
+```{r}
+#| code-show: TRUE
+MyCompensation <- read.csv("MyComp.csv", check.names=FALSE)
+MyCompensation
+```
+If we compare the above to the matrix currently stored in spillover, we can see a couple potential issues, namely, the FlowJo exported .csv has the names of the ligands still included; and the row.names column is still present. 
+
+```{r}
+#| code-show: TRUE
+TheComps[1]
+```
+We could of course edit this manually by hand, or we can have R do it. First we remove the row name column:
+
+```{r}
+#| code-show: TRUE
+MyCompensation <- MyCompensation[-1] #Removed the first rowname column
+colnames(MyCompensation)
+```
+With that done, we remove everything within the column names that is present after -A:
+```{r}
+#| code-show: TRUE
+colnames(MyCompensation) <- sub("-A.*", "-A", colnames(MyCompensation))
+colnames(MyCompensation)
+```
+And finally, we convert it from a data.frame to a matrix
+
+```{r}
+MyCompensation <- as.matrix(MyCompensation)
+MyCompensation
+```
+Now, returning to the original example of applying the spillover, we provide the external:
+
+```{r}
+flowframe_ExternalComp <- compensate(flowframe, MyCompensation)
+```
+
+And visualize the effect before and after:
+
+```{r}
+#| code-fold: show
+autoplot(flowframe_comped, x = "Qdot 605-A", y = "Alexa Fluor 700-A", bins = 270) +
+  scale_x_flowjo_biexp() + scale_y_flowjo_biexp() + theme_bw()
+```
+
+```{r}
+#| code-fold: show
+autoplot(flowframe_ExternalComp, x = "Qdot 605-A", y = "Alexa Fluor 700-A", bins = 270) +
+  scale_x_flowjo_biexp() + scale_y_flowjo_biexp() + theme_bw()
+```
+Notice it did move (still ugly-ish but I only barely adjusted the compensation matrix due to lack of time). 
+
+Hope this helps clarify a little!!! Keep it up!
 
 
 # System Information
