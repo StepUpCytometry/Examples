@@ -1,0 +1,175 @@
+---
+title: "Cytometry in R:"
+subtitle: "Compensation in flowCore"
+date: "10/22/2024"
+layout: full
+format:
+  html: default
+toc: true
+toc-location: right
+fig-cap-location: top
+embed-resources: TRUE
+---
+
+# Getting Set Up
+
+If you haven't already, please go ahead and install the following packages: 
+
+```{r}
+#| eval: FALSE
+#| code-fold: show
+#| 
+# If not yet done so, install required packages
+install.packages("BiocManager")
+install.packages("BiocStyle")
+BiocManager::install("flowCore")
+BiocManager::install("ggcyto")
+BiocManager::install("FlowSOM")
+```
+ 
+Once installed, load the required packages into R by calling library. 
+
+```{r}
+#| code-fold: show
+#| message: false
+library(flowCore)
+library(ggcyto)
+library(BiocStyle)
+library(FlowSOM)
+```
+
+For this example, I am using an .fcs file contained within the `r Biocpkg("flowSOM")` package's extdata folder. I find it using system.file, and then list.files to show the full path to it's location. Once it's located, I will load it into a flowframe via flowCore similar to what we can see in the Christopher Hall video. 
+
+```{r}
+#| code-fold: show
+File_Location <- system.file("extdata", package = "FlowSOM")
+FCSFile_Example <- list.files(File_Location, pattern="fcs", full.names=TRUE)
+flowframe <- read.FCS(FCSFile_Example, transformation = FALSE, truncate_max_range = FALSE)
+```
+
+If you have your own .fcs file, instead of system.file I usually will use file.path to indicate the location. For example:
+```{r}
+#| eval: FALSE
+#| code-fold: show
+Location <- file.path("C:", "Users", "StepUpCytometry", "Desktop", "TodaysExperiment")
+ExperimentFCSFiles <- list.files(Location, pattern=".fcs", full.names=TRUE)
+flowframe <- read.FCS(FCSFile_Example[1], transformation = FALSE, truncate_max_range = FALSE)
+```
+
+# flowFrame objects
+
+Once you have loaded the .fcs file into a flowframe, let's quickly poke around to see what this kind of object looks like in R. 
+```{r}
+#| code-fold: show
+flowframe
+```
+Within `r Biocpkg("flowCore")` flowframe and flowset objects, the information for an individual .fcs file is contained within exprs (data), parameters and description (keywords). For this example I will abbreviate them to the first 10 entries, if you want to see the full entries, run the code-chunks below on your own computer.
+
+```{r}
+#| eval: false
+#| code-fold: show
+View(flowframe@description)
+```
+
+```{r}
+#| echo: FALSE
+Example <- flowframe@description
+head(Example, 10)
+```
+Description (keywords) is a named list containing everything from voltage settings, compensation matrix, metadata, software configurations, etc.  
+
+
+```{r}
+#| eval: false
+#| code-fold: show
+View(flowframe@parameters@data)
+```
+
+```{r}
+#| echo: FALSE
+Example <- flowframe@parameters@data
+Example
+```
+Parameters is one of the many locations containing the name of the fluorophore, and the ligand name. 
+
+
+```{r}
+#| eval: false
+#| code-fold: show
+View(flowframe@exprs)
+```
+
+```{r}
+#| echo: FALSE
+Example <- flowframe@exprs
+head(Example, 10)
+```
+And exprs contains the actual raw data, with each row representing the measurements of an individual cell. 
+
+
+# Applying Compensation
+For the question of compensation, the compensation matrix is stored under keyword "SPILL" within the description (keyword) list and is a matrix object. 
+
+```{r}
+#| code-fold: show
+flowframe@description[["SPILL"]]
+```
+
+In the case of Christopher Hall's video #2's example, if we look at the initial data (from flowframe@exprs) we can see the initial values for the first ten cells
+
+```{r}
+Example <- flowframe@exprs
+head(Example, 10)
+```
+And after compensation, we can compare the values to see how they change once compensation is applied:
+
+```{r}
+TheComps <- spillover(flowframe)
+flowframe_comped <- compensate(flowframe, TheComps[[1]])
+head(flowframe_comped@exprs, 10)
+```
+
+# Visualizing (ggcyto)
+As you might be able to tell, FSC SSC parameters remain the same, while the values for the Fluorophore columns have been adjusted. This is due to no columns being present for FSC SSC Time etc. in the Spillover matrix. 
+
+We can visualize this with the with the `r Biocpkg("ggcyto")` package to see the effects for the before vs. after:
+
+```{r}
+#| code-fold: show
+autoplot(flowframe, x = "PE-Cy7-A", y = "PE-Texas Red-A", bins = 270) +
+  scale_x_flowjo_biexp() + scale_y_flowjo_biexp() + theme_bw()
+```
+
+```{r}
+#| code-folde: show
+autoplot(flowframe_comped, x = "PE-Cy7-A", y = "PE-Texas Red-A", bins = 270) +
+  scale_x_flowjo_biexp() + scale_y_flowjo_biexp() + theme_bw()
+```
+
+Hope this helps clarify a little!!! Keep it up!
+
+# Bonus In the Weeds
+
+If we look closer at what type of object is returned by spillover, we can see that the initial command is returning three list:
+
+```{r}
+#| code-fold: show
+TheComps <- spillover(flowframe)
+TheComps
+```
+
+And that the first item that we passed to compensate is the matrix array object containing the spillover/compensation matrix. If we didn't have it in the fcs file to begin with (either due to a difference in acquisition software, or desire to apply a separate compensation matrix you generated elsewhere), you could format it similarly and swap it in. 
+
+```{r}
+#| code-fold: show
+TheComps[[1]]
+
+class(TheComps[[1]])
+```
+
+
+# System Information
+```{r}
+#| code-fold: show
+sessionInfo()
+```
