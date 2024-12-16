@@ -265,7 +265,7 @@ UnstainedBeads <- Luciernaga_QC(x=MyUnstainedBeadsGatingSet[1], desiredAF = NULL
 
 BV711Bead_Signatures <- Luciernaga_QC(BV711_Bead[1], subsets="singlets",
                               removestrings=removestrings, sample.name="GUID",
-                              unmixingcontroltype = "cells", Unstained = FALSE,
+                              unmixingcontroltype = "beads", Unstained = FALSE,
                               ratiopopcutoff = 0.001, Verbose = FALSE,
                               AFOverlap = AFOverlap, stats = "median",
                               ExportType = "data", SignatureReturnNow = FALSE,
