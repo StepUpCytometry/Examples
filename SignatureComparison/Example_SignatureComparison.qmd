@@ -1,0 +1,292 @@
+---
+title: "Signature Comparison"
+date: "12/16/2024"
+layout: full
+format:
+  html: default
+toc: true
+toc-location: right
+embed-resources: TRUE
+---
+
+This code relies on the cytoverse packages for getting the raw .fcs files into GatingSet objects for subsequent handling. These are then passed to Luciernaga (currently available via GitHub) for the signature processing and plotting normalized signatures.  
+
+# Setup
+
+## Load Libraries
+```{r}
+#| code-fold: show
+#| warning: FALSE
+#| message: false
+# CRAN packages (install.packages("ThisOne"))
+library(data.table)
+library(gt)
+library(stringr)
+library(dplyr)
+
+# Bioconductor packages( BiocManager::install("ThisOne"))
+library(flowCore)
+library(flowWorkspace)
+library(openCyto)
+library(ggcyto)
+```
+
+```{r}
+#| eval: FALSE
+remotes::install_github("https://github.com/DavidRach/Luciernaga")
+library(Luciernaga)
+```
+
+## Locating FCS Files
+Using .fcs files from within the Luciernaga R package for this example, for your case specify the location of the raw fcs file folder by swapping in the #ed argument. 
+
+```{r}
+#| code-fold: show
+File_Location <- system.file("extdata", package = "Luciernaga")
+#Alternately: File_Location <- file.path("C:", "Users", "JohnDoe", "Desktop", "TodaysExperiment")
+FCS_Pattern <- ".fcs$"
+FCS_Files <- list.files(path = File_Location, pattern = FCS_Pattern,
+                        full.names = TRUE, recursive = FALSE)
+```
+
+```{r}
+#| code-fold: show
+UnstainedFCSFiles <- FCS_Files[grep("Unstained", FCS_Files)]
+UnstainedBeads <- UnstainedFCSFiles[grep("Beads", UnstainedFCSFiles)]
+UnstainedCells <- UnstainedFCSFiles[-grep("Beads", UnstainedFCSFiles)]
+
+BeadFCSFiles <- FCS_Files[grep("Beads", FCS_Files)]
+BeadSingleColors <- BeadFCSFiles[-grep("Unstained", BeadFCSFiles)]
+
+CellSingleColors <- FCS_Files[grep("Cells", FCS_Files)]
+```
+
+## Gating For Single-Colors Cells
+```{r}
+#| code-fold: show
+MyCytoSet <- load_cytoset_from_fcs(CellSingleColors, truncate_max_range = FALSE,
+                                   transformation = FALSE)
+MyCellGatingSet <- GatingSet(MyCytoSet)
+MyCellGatingSet
+```
+
+```{r}
+#| code-fold: show
+FileLocation <- system.file("extdata", package = "Luciernaga")
+# FileLocation <- file.path("SignatureComparison")
+MyGates <- fread(file.path(path = FileLocation, pattern = 'Gates.csv'))
+gt(MyGates)
+```
+
+```{r, message=FALSE}
+#| code-fold: show
+#| message: false
+MyGatingTemplate <- gatingTemplate(MyGates)
+gt_gating(MyGatingTemplate, MyCellGatingSet)
+
+#pData(MyCellGatingSet[[20]])
+
+BV711_Cell <- subset(MyCellGatingSet, str_detect(name, "BV711"))
+BV711_Cell[[1]]
+
+autoplot(BV711_Cell, "lymphocytes")
+```
+
+```{r}
+#| eval: FALSE
+#| code-fold: show
+# Alternately visualize gate placement via Luciernaga
+
+if(!require("remotes")) install.packages("remotes")
+remotes::install_github("https://github.com/DavidRach/Luciernaga")
+
+library(Luciernaga)
+
+removestrings <-  c("DR_", "Cells", ".fcs", "-", " ")
+StorageLocation <- file.path("C:", "Users", "JohnDoe", "Desktop")
+
+IndividualPlot <- Utility_GatingPlots(x=BV711_Cell[[1]], sample.name = "GUID",
+                                      removestrings = removestrings,
+                                      gtFile = MyGates, DesiredGates = NULL,
+                                      outpath = StorageLocation, export = FALSE,
+                                      thecolumns=2, therows=3)
+IndividualPlot[[1]]
+```
+
+## Gating For Single-Color Beads
+
+```{r}
+#| code-fold: show
+MyBeadsCytoSet <- load_cytoset_from_fcs(BeadSingleColors,
+                                        truncate_max_range = FALSE,
+                                        transform = FALSE)
+
+MyBeadsGatingSet <- GatingSet(MyBeadsCytoSet)
+```
+
+```{r, message=FALSE}
+#| code-fold: show
+FileLocation <- system.file("extdata", package = "Luciernaga")
+# FileLocation <- file.path("SignatureComparison")
+MyBeadsGates <- fread(file.path(path = FileLocation, 
+                                pattern = 'GatesBeads.csv'))
+gt(MyBeadsGates)
+```
+
+```{r}
+#| message: FALSE
+#| code-fold: show
+MyBeadsGatingTemplate <- gatingTemplate(MyBeadsGates)
+gt_gating(MyBeadsGatingTemplate, MyBeadsGatingSet)
+
+BV711_Bead <- subset(MyBeadsGatingSet, str_detect(name, "BV711"))
+BV711_Bead[[1]]
+plot(BV711_Bead)
+
+autoplot(BV711_Bead, "beads")
+```
+
+```{r}
+#| eval: FALSE
+#| code-fold: show
+# Alternately visualize gate placement via Luciernaga
+
+# if(!require("remotes")) install.packages("remotes")
+# remotes::install_github("https://github.com/DavidRach/Luciernaga")
+
+library(Luciernaga)
+
+removestrings <-  c("DR_", "Cells", ".fcs", "-", " ")
+StorageLocation <- file.path("C:", "Users", "JohnDoe", "Desktop")
+
+IndividualPlot <- Utility_GatingPlots(x=BV711_Bead[[1]], sample.name = "GUID",
+                                      removestrings = removestrings,
+                                      gtFile = MyBeadsGates, DesiredGates = NULL,
+                                      outpath = StorageLocation, export = FALSE,
+                                      thecolumns=2, therows=3)
+IndividualPlot[[1]]
+```
+
+## Gating for Unstained Cells
+
+```{r}
+#| code-fold: show
+# UnstainedCells # Selecting first specimen in list
+MyUnstainedCytoSet <- load_cytoset_from_fcs(UnstainedCells[1], 
+                                   truncate_max_range = FALSE, 
+                                   transform = FALSE)
+MyUnstainedGatingSet <- GatingSet(MyUnstainedCytoSet)
+```
+
+```{r}
+#| code-fold: show
+FileLocation <- system.file("extdata", package = "Luciernaga")
+# FileLocation <- file.path("SignatureComparison")
+MyGates <- fread(file.path(path = FileLocation, pattern = 'Gates.csv'))
+gt(MyGates)
+```
+
+```{r}
+#| code-fold: show
+#| message: false
+MyGatingTemplate <- gatingTemplate(MyGates)
+gt_gating(MyGatingTemplate, MyUnstainedGatingSet)
+MyUnstainedGatingSet[[1]]
+autoplot(MyUnstainedGatingSet[[1]], "lymphocytes")
+```
+
+## Gating for Unstained Beads
+
+```{r}
+#| code-fold: show
+MyUnstainedBeadsCytoSet <- load_cytoset_from_fcs(UnstainedBeads,
+                                        truncate_max_range = FALSE,
+                                        transform = FALSE)
+MyUnstainedBeadsGatingSet <- GatingSet(MyUnstainedBeadsCytoSet)
+```
+
+```{r}
+#| code-fold: show
+FileLocation <- system.file("extdata", package = "Luciernaga")
+# FileLocation <- file.path("SignatureComparison")
+MyBeadsGates <- fread(file.path(path = FileLocation, 
+                                pattern = 'GatesBeads.csv'))
+gt(MyBeadsGates)
+```
+
+```{r}
+#| code-fold: show
+#| message: false
+MyBeadsGatingTemplate <- gatingTemplate(MyBeadsGates)
+gt_gating(MyBeadsGatingTemplate, MyUnstainedBeadsGatingSet)
+MyUnstainedBeadsGatingSet[[1]]
+plot(MyUnstainedBeadsGatingSet)
+pData(MyUnstainedBeadsGatingSet)
+autoplot(MyUnstainedBeadsGatingSet, "beads")
+```
+
+# Extracting Data
+
+```{r}
+#| code-fold: show
+#| message: false
+library(Luciernaga)
+
+FileLocation <- system.file("extdata", package = "Luciernaga")
+# FileLocation <- file.path("SignatureComparison")
+pattern = "AutofluorescentOverlaps.csv"
+AFOverlap <- list.files(path=FileLocation, pattern=pattern,
+                        full.names = TRUE)
+removestrings <- c(".fcs")
+StorageLocation <- file.path("C:", "Users", "JohnDoe", "Desktop")
+
+BV711Cell_Signatures  <- Luciernaga_QC(x=BV711_Cell[1],
+                                      subsets="lymphocytes",
+                                      removestrings=removestrings,
+                                      sample.name="GUID",
+                                      unmixingcontroltype = "cells",
+                                      Unstained = FALSE,
+                                      ratiopopcutoff = 0.01,
+                                      Verbose = TRUE,
+                                      AFOverlap = AFOverlap, 
+                                      stats = "median",
+                                      ExportType = "data",
+                                      SignatureReturnNow = FALSE,
+                                      outpath = NULL, Increments=0.1,
+                                      experiment="Test", condition="Cells")
+
+UnstainedBeads <- Luciernaga_QC(x=MyUnstainedBeadsGatingSet[1], desiredAF = NULL,
+                    subsets="singlets", removestrings=removestrings,
+                    sample.name="GUID", unmixingcontroltype = "beads",
+                    Unstained = TRUE, ratiopopcutoff = 0.001, Verbose = TRUE,
+                    AFOverlap = AFOverlap, stats = "median",
+                    ExportType = "data.frame", SignatureReturnNow = TRUE,
+                    outpath = NULL, experiment="Test", condition="Test")
+
+BV711Bead_Signatures <- Luciernaga_QC(BV711_Bead[1], subsets="singlets",
+                              removestrings=removestrings, sample.name="GUID",
+                              unmixingcontroltype = "cells", Unstained = FALSE,
+                              ratiopopcutoff = 0.001, Verbose = FALSE,
+                              AFOverlap = AFOverlap, stats = "median",
+                              ExportType = "data", SignatureReturnNow = FALSE,
+                              outpath = StorageLocation, Increments=0.1,
+                              SecondaryPeaks=2, experiment = "Test",
+                              condition = "Beads", SCData="subtracted",
+                              NegativeType="default", BeadAF=UnstainedBeads,
+                              BeadMainAF="UV1-A")
+```
+
+```{r}
+#| code-fold: show
+
+# Minor Data Wrangling Due to A Bug I Am Dealing With
+
+Data <- rbind(BV711Cell_Signatures, BV711Bead_Signatures) %>% mutate(Signature=paste(Sample, Cluster)) %>% relocate(Signature, .before=1) %>% select(-Sample, -Experiment, -Condition, -Cluster, -Count)
+colnames(Data)[1] <- "Sample"
+TheSignatures <- Data %>% pull(Sample)
+
+Plot <- Luciernaga::QC_ViewSignature(x=TheSignatures, data=Data, Normalize=TRUE)
+
+plotly::ggplotly(Plot)
+```
+
