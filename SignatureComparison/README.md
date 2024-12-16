@@ -1,3 +1,3 @@
-Contained within this folder is the .qmd file containing the R code and explanations. The rendered html version of this document can be found at [the following link](https://stepupcytometry.quarto.pub/signature-comparison/)
+Contained within this folder is the Example_SignatureComparison.qmd file containing the R code and walkthrough. The rendered html version of this document can be found on Quarto-Pub at [the following link](https://stepupcytometry.quarto.pub/signature-comparison/).
 
-The other files in this repository are .csv files that correspond to the Luciernaga extdata files referenced within the .qmd file. They provide the arguments to openCyto for the gate placement for beads/cells in the examples, and the channels where autofluorescent overlap is expected.
+The other files within this repository are .csv files originially from the Luciernaga extdata files that are referenced in the .qmd file for the examples. They provide the arguments needed for openCyto for carry out gate placement for beads/cell .fcs files, and for Luciernaga to deduce what detectors to expect single color and autofluorescent overlap on.
