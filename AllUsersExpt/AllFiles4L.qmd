@@ -1,0 +1,157 @@
+---
+title: AllUsers_4L
+date: today
+---
+
+# Data Acquisition
+
+After initial acquisition, experiments are exported by users to an external hard-drive for long-term storage. We want to identify all zipped-folders, find the .Expt files, and copy them over to a separate folder for subsequent analysis. 
+
+```{r}
+#| eval: false
+#| code-fold: true
+
+library(purrr)
+
+InPath <- file.path("F:")
+OutPath <- file.path("G:", "4L_Storage")
+```
+
+```{r}
+#| eval: false
+#| code-fold: true
+
+AllUsers <- function(InPath, OutPath){
+
+AllZipFiles <- list.files(path = InPath, pattern = "\\.zip$", full.names = TRUE, recursive=TRUE) 
+message(length(AllZipFiles), " Zipped Files Found")
+
+AllZipFiles <- AllZipFiles[!grepl("RECYCLE", AllZipFiles)]
+
+walk(.x=AllZipFiles, .f=ExptFileLocate, OutPath=OutPath)
+}
+
+ExptFileLocate <- function(x, OutPath){
+  ZippedFolder <- x
+  ZipContents <- tryCatch({unzip(x, list = TRUE)$Name}, 
+                          error=function(e){
+                          return(NULL)
+                          })
+  
+  if(!is.null(ZipContents)){
+  ExptFiles <- ZipContents[grepl("\\.Expt$", ZipContents)]
+
+  walk(.x=ExptFiles, .f=ExpFileCopy, ZippedFolder=ZippedFolder, OutPath=OutPath)
+  } else {message("NULL for Zip Folder", ZippedFolder)}
+}
+
+ExpFileCopy <- function(x, ZippedFolder, OutPath){
+  Tempd <- tempdir()
+  unzip(ZippedFolder, files = x, exdir = Tempd)
+  ExtractedPath <- file.path(Tempd, x)
+  file.copy(ExtractedPath, OutPath, overwrite = TRUE)
+}
+```
+
+```{r}
+#| eval: false
+#| code-fold: true
+
+AllUsers(InPath=InPath, OutPath=OutPath)
+```
+
+# Extracting Expt Reference Signatures
+
+With a separate copy of the .Expt file secured in a separate folder, we can extract the reference signatures containined within each .Expt file:
+
+```{r}
+#| message: false
+#| warning: false
+#| code-fold: true
+
+library(Luciernaga)
+library(stringr)
+library(purrr)
+library(dplyr)
+library(htmltools)
+```
+
+```{r}
+#| code-fold: true
+OutPath <- file.path("G:", "4L_Storage")
+Files <- list.files(OutPath, pattern=".Expt", full.names=TRUE)
+#length(Files)
+```
+
+```{r}
+#| code-fold: true
+WrapperFunction <- function(x, Type){
+  data <- Luciernaga:::SpectroFloSignatureParser(x, returnType = "data")
+  
+  if(!is.null(data)){
+    Updated <- data %>% mutate(Type = Type) %>%
+      relocate(Type, .before=1)
+    return(Updated)
+  } else {return(data)}
+}
+```
+
+```{r}
+#| message: true
+#| code-fold: true
+AllUserData <- map(.x=Files, .f=WrapperFunction, Type="AllUser")
+#length(MyeloidData)
+AllUserData <- compact(AllUserData )
+#length(MyeloidData)
+AllUserData  <- bind_rows(AllUserData)
+#nrow(MyeloidData)
+```
+
+# Visualizing Signatures
+
+With All User .Expt reference signatures, we can now visualize them. I am filtering for those present in at least 100 experiments (so 27 most commonly used fluorophores) due to space constraints. 
+
+```{r}
+#| code-fold: true
+FilterPlotWrapper <- function(x, data){
+  data <- data %>% filter(Fluorophore %in% x)
+  
+  data$DateTime <- as.Date(data$DateTime)
+  data$DateTime <- factor(data$DateTime)
+  
+  plot <- Luciernaga:::PlotlySignatures(data, TheFactor="DateTime")
+  plot <- plot %>% plotly::layout(
+    title = list(text = paste0("Fluorophore: ", x)))
+  
+  return(plot)
+}
+```
+
+```{r}
+#| code-fold: true
+#Bug
+AllUserData <- AllUserData %>% select(-c(X1, X2, X3))
+
+MostUsed <- AllUserData %>% group_by(Fluorophore) %>%
+  summarize(Count = n()) %>% filter(Count > 40)
+
+Fluorophores <- MostUsed %>% pull(Fluorophore) %>% unique()
+
+Fluorophores <- Fluorophores[-1]
+```
+
+```{r}
+#| code-fold: true
+Plots <- map(.x=Fluorophores, .f=FilterPlotWrapper, data=AllUserData)
+
+l <- htmltools::tagList()
+
+for(i in seq_along(Plots)) {
+  l[[i]] <- tagList(Plots[[i]])
+}
+```
+
+```{r}
+#| code-fold: true
+l
+```
