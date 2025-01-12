@@ -26,7 +26,7 @@ FluorophoreList <- FluorophoreList[!grepl("STAINED", FluorophoreList)]
 FluorophoreList <- FluorophoreList[!grepl("omato", FluorophoreList)]
 
 
-Plots <- map(.x=FluorophoreList, .f=Luciernaga:::LibraryPlotWrapper, data=Data, myfactor="Sample", animate=TRUE)
+Plots <- map(.x=FluorophoreList, .f=Luciernaga:::LibraryPlotWrapper, data=Data, myfactor="DateTime", animate=TRUE)
 
 l <- htmltools::tagList()
 for(i in seq_along(Plots)) {
