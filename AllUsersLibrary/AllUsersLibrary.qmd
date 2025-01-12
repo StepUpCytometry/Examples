@@ -1,0 +1,40 @@
+---
+title: "All Users Library Reference Controls"
+---
+
+```{r}
+#| code-fold: true
+#| warning: false
+#| message: false
+library(purrr)
+library(dplyr)
+library(Luciernaga)
+library(htmltools)
+```
+
+```{r}
+#| code-fold: true
+path <- file.path("G:", "5L_Library")
+files <- list.files(path, full.names = TRUE)
+LibraryControls <- map(.x=files, .f=QC_LibraryParse, returntype="data")
+Data <- bind_rows(LibraryControls)
+FluorophoreList <- Data %>% pull(Fluorophore) %>% unique()
+
+FluorophoreList <- FluorophoreList[!grepl("Negative", FluorophoreList)]
+FluorophoreList <- FluorophoreList[!grepl("stained", FluorophoreList)]
+FluorophoreList <- FluorophoreList[!grepl("STAINED", FluorophoreList)]
+FluorophoreList <- FluorophoreList[!grepl("omato", FluorophoreList)]
+
+
+Plots <- map(.x=FluorophoreList, .f=Luciernaga:::LibraryPlotWrapper, data=Data, myfactor="Sample", animate=TRUE)
+
+l <- htmltools::tagList()
+for(i in seq_along(Plots)) {
+  l[[i]] <- tagList(Plots[[i]])
+}
+```
+
+```{r}
+#| code-fold: true
+l
+```
