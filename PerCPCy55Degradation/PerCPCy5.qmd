@@ -1,0 +1,161 @@
+---
+title: "PerCPCy5.5 Degradation Patterns"
+date: "02/14/2025"
+layout: full
+format:
+  html: default
+toc: true
+toc-location: right
+embed-resources: TRUE
+---
+
+Visualizing recovered PerCP-Cy5.5 signatures (and their degradation patterns).
+
+Staining Antibody: CD26 PerCP-Cy5.5
+Staining Cells: Lymphocytes from Cord Blood Mononuclear Cells
+
+
+## Setup
+
+#### Load Libraries
+```{r}
+#| include: false
+#| warning: true
+#| message: true
+library(Luciernaga)
+
+library(flowCore)
+library(flowWorkspace)
+library(openCyto)
+library(ggcyto) 
+
+library(data.table)
+library(dplyr)
+library(purrr) 
+library(stringr)
+library(ggplot2)
+library(gt)
+library(plotly)
+library(htmltools)
+```
+
+```{r}
+#| code-fold: true
+#| eval: false
+
+library(Luciernaga)
+
+library(flowCore)
+library(flowWorkspace)
+library(openCyto)
+library(ggcyto) 
+
+library(data.table)
+library(dplyr)
+library(purrr) 
+library(stringr)
+library(ggplot2)
+library(gt)
+library(plotly)
+library(htmltools)
+```
+
+#### Identify PerCP-Cy5.5 fcs files from External Hard Drive
+
+```{r}
+#| code-fold: TRUE
+LuciernagaDatabase <- file.path("F:", "LuciernagaDatabase", "LuciernagaInputs")
+FCS_Pattern <- "PerCP.*\\.fcs$"
+PerCP_Files <- list.files(path = LuciernagaDatabase, pattern = FCS_Pattern,
+                        full.names = TRUE, recursive = TRUE)
+files <- grep("Cells.*ILT|ILT.*Cells", PerCP_Files, value = TRUE)
+```
+
+#### Load to Gating Set
+```{r}
+#| code-fold: TRUE
+MyCytoSet <- load_cytoset_from_fcs(files, 
+                                   truncate_max_range = FALSE, 
+                                   transform = FALSE)
+MyGatingSet <- GatingSet(MyCytoSet)
+```
+
+#### Add Gates
+```{r}
+#| code-fold: TRUE
+#| message: false
+
+FileLocation <- system.file("extdata", package = "Luciernaga")
+MyGates <- fread(file.path(path = FileLocation, pattern = 'Gates.csv'))
+MyGatingTemplate <- gatingTemplate(MyGates)
+gt_gating(MyGatingTemplate, MyGatingSet)
+```
+
+
+#### Check gates
+```{r}
+#| code-fold: TRUE
+#| eval: FALSE
+removestrings <-  c("DR_", "(Cells)", ".fcs", " ")
+StorageLocation <- file.path("/home", "david", "Desktop", "PerCPCy5")
+  
+IteratedPlots <- map(.x = MyGatingSet, .f = Utility_GatingPlots, 
+                     sample.name = "$DATE", removestrings = removestrings,
+                     gtFile = MyGates, DesiredGates = NULL,
+                     outpath = StorageLocation, returnType = "pdf", therows=3, thecolumns=2)
+```
+
+#### Provision the AFOverlap list for Luciernaga
+```{r}
+#| code-fold: TRUE
+FileLocation <- system.file("extdata", package = "Luciernaga")
+pattern = "AutofluorescentOverlaps.csv"
+AFOverlap <- list.files(path=FileLocation, pattern=pattern,
+                        full.names = TRUE)
+AFOverlap_CSV <- read.csv(AFOverlap, check.names = FALSE)
+```
+
+#### Run LuciernagaQC
+```{r}
+#| code-fold: TRUE
+#| message: false
+
+#pData(MyGatingSet)
+Last <- length(MyGatingSet)
+
+SingleStain_Signatures <- map(.x=MyGatingSet[c(1:9, 11:Last)], .f=Luciernaga_QC ,
+                                      subsets="lymphocytes",
+                                      removestrings=".fcs",
+                                      sample.name="GUID",
+                                      unmixingcontroltype = "cells",
+                                      Unstained = FALSE,
+                                      ratiopopcutoff = 0.01,
+                                      Verbose = FALSE,
+                                      AFOverlap = AFOverlap, 
+                                      stats = "median",
+                                      ExportType = "data",
+                                      SignatureReturnNow = FALSE,
+                                      outpath = StorageLocation, experiment="ILTs",
+                                      condition="PerCPCy55", Increments=0.1) |> bind_rows()
+                                
+```
+
+#### Data Cleanup For Signatures Found More than 200 cells
+```{r}
+#| code-fold: TRUE
+#| message: false
+Signatures <- SingleStain_Signatures |> group_by(Cluster) |> arrange(desc(Count)) |> slice(1) %>% ungroup()
+Signatures <- Signatures |> dplyr::filter(Count > 200)
+
+Data <- Signatures |> select(-Sample, -Experiment, -Condition, -Count) |> rename(Sample=Cluster)
+AllTheseBastards <- Data |> pull(Sample)
+
+SignatureViews <- QC_ViewSignature(x=AllTheseBastards, data=Data, Normalize=TRUE)
+```
+
+## Visualized PerCP-Cy5.5 Signatures
+```{r}
+#| code-fold: TRUE
+plotly::ggplotly(SignatureViews)
+```
+
