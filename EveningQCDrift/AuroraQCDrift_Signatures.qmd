@@ -1,0 +1,126 @@
+---
+title: "Aurora Evening QC Drift - Theoretical Signatures"
+date: "03/24/2025"
+format: html
+layout: full
+engine: knitr
+embed-resources: TRUE
+---
+
+```{r}
+#| code-fold: true
+#| echo: false
+#| warning: false
+#| message: false
+
+library(dplyr)
+library(stringr)
+library(purrr)
+library(Luciernaga)
+```
+
+```{r}
+#| code-fold: true
+#| echo: false
+#| warning: false
+#| message: false
+
+Data <- read.csv("/home/david/Documents/Examples/EveningQCDrift/EveningQCDrift.csv", check.names=FALSE)
+Data$DateTime <- lubridate::ymd_hms(Data$DateTime)
+Data$Timepoint <- gsub("_NA", "", Data$Timepoint)
+Data <- Data |> filter(!DATE %in% c("2024-12-05", "2024-12-06"))
+TheNames <- colnames(Data)
+TheColumns <- TheNames[str_detect(TheNames, "-A$")]
+
+data <- Data
+Data1 <- data |> group_by(DATE) |> filter(str_detect(Timepoint, "fter")) |>
+  summarise(across(all_of(TheColumns), mean, na.rm = TRUE))
+#ncol(Data1)
+#nrow(Data1)
+
+Data2 <- data |> group_by(DATE) |> filter(str_detect(Timepoint, "Before_Evening")) |>
+    select(all_of(c("DATE", TheColumns)))
+#ncol(Data2)
+#nrow(Data2)
+
+Data2_aligned <- Data2[match(Data1$DATE, Data2$DATE), ]
+Residual <- Data1
+Residual[-1] <- Data2_aligned[-1] / Data1[-1]
+#View(Residual)
+```
+
+```{r}
+#| code-fold: true
+#| echo: false
+#| warning: false
+#| message: false
+EveningQCTheoretical <- function(Residual, NumberDetectors=64, TheFluorophore,
+ RestingMFI=10000){
+
+References <- Luciernaga:::InstrumentReferences(NumberDetectors=NumberDetectors)
+Internal <- References |> filter(Fluorophore %in% TheFluorophore) |>
+     mutate(AdjustedY=AdjustedY*RestingMFI)
+
+FinalCol <- ncol(Residual)
+
+Internal <- Internal |> select(-Instrument, -Fluorophore)
+Residual <- Residual |> tidyr::pivot_longer(all_of(2:FinalCol),
+ names_to="Detector", values_to="Adjustment")
+Residual$Detector <- gsub("-A", "", Residual$Detector)
+Merge <- left_join(Residual, Internal, by="Detector")
+Merge <- Merge |> mutate(EveningMFI=Adjustment*AdjustedY)
+Merge <- Merge |> filter(!str_detect(Detector, "SC"))
+
+Merge <- Merge |> group_by(DATE) |>
+     mutate(Signature = EveningMFI/max(EveningMFI, na.rm = TRUE)) |>
+    ungroup()
+
+Merge2 <- Merge |> select(-Adjustment, -AdjustedY, -EveningMFI)
+
+TheseDates <- Merge2 |> pull(DATE) |> unique()
+
+Plot <- QC_ViewSignature(x=TheseDates, columnname="DATE", data=Merge2,
+ TheFormat="longer", detectorcolumn = "Detector", valuecolumn = "Signature",
+ Normalize=FALSE)
+
+Plot <- Plot + ggplot2::labs(title=TheFluorophore)
+
+return(Plot)
+}
+```
+
+```{r}
+#| code-fold: true
+#| echo: false
+#| warning: false
+#| message: false
+
+NumberDetectors <- 64
+TheFluorophore <- "PE"
+RestingMFI <- 100000
+
+FluorophoreList <- c("BUV395", "BUV563", "BUV615", "BUV661", "BUV737",
+ "BUV805", "Pacific Blue", "BV480", "BV605", "BV650", "BV711", "BV750", "BV786", 
+ "Alexa Fluor 488", "Spark Blue 550", "Spark Blue 574", "RB613", "RB705", "RB780", 
+    "PE", "PE-Dazzle 594", "PE-Cy5", "PE-Fire 700", "PE-Fire 744", "PE-Vio 770", 
+    "APC", "Alexa Fluor 647", "APC-R700", "Zombie NIR", "APC-Fire 750",
+    "APC-Fire 810")
+
+Plots <- map(FluorophoreList, ~ EveningQCTheoretical(TheFluorophore=.x, Residual=Residual))
+```
+
+```{r}
+#| code-fold: true
+#| echo: false
+
+l <- htmltools::tagList()
+for(i in seq_along(Plots)) {
+  l[[i]] <- htmltools::tagList(plotly::ggplotly(Plots[[i]]))
+}
+```
+
+```{r}
+l
+```
+
+
