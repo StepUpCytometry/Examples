@@ -9,7 +9,6 @@ embed-resources: TRUE
 
 ```{r}
 #| code-fold: true
-#| echo: false
 #| warning: false
 #| message: false
 
@@ -21,13 +20,13 @@ library(Luciernaga)
 
 ```{r}
 #| code-fold: true
-#| echo: false
 #| warning: false
 #| message: false
 
-Data <- read.csv("/home/david/Documents/Examples/EveningQCDrift/EveningQCDrift.csv", check.names=FALSE)
+Data <- read.csv("C:/Users/12692/Documents/Examples/EveningQCDrift/EveningQCDrift.csv", check.names=FALSE)
+#Data <- read.csv("/home/david/Documents/Examples/EveningQCDrift/EveningQCDrift.csv", check.names=FALSE)
 Data$DateTime <- lubridate::ymd_hms(Data$DateTime)
-Data$Timepoint <- gsub("_NA", "", Data$Timepoint)
+# Data$Timepoint <- gsub("_NA", "", Data$Timepoint)
 Data <- Data |> filter(!DATE %in% c("2024-12-05", "2024-12-06"))
 TheNames <- colnames(Data)
 TheColumns <- TheNames[str_detect(TheNames, "-A$")]
@@ -51,7 +50,6 @@ Residual[-1] <- Data2_aligned[-1] / Data1[-1]
 
 ```{r}
 #| code-fold: true
-#| echo: false
 #| warning: false
 #| message: false
 EveningQCTheoretical <- function(Residual, NumberDetectors=64, TheFluorophore,
@@ -91,7 +89,6 @@ return(Plot)
 
 ```{r}
 #| code-fold: true
-#| echo: false
 #| warning: false
 #| message: false
 
@@ -111,7 +108,6 @@ Plots <- map(FluorophoreList, ~ EveningQCTheoretical(TheFluorophore=.x, Residual
 
 ```{r}
 #| code-fold: true
-#| echo: false
 
 l <- htmltools::tagList()
 for(i in seq_along(Plots)) {
