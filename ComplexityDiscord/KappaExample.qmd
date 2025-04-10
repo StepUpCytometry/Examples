@@ -1,0 +1,107 @@
+---
+title: "Complexity Index vs SVD/kappa"
+format: html
+---
+
+# Hypothetical
+
+## Load Libraries
+```{r}
+#| warning: false
+#| message: false
+library(Luciernaga)
+library(dplyr)
+library(tidyr)
+library(gt)
+```
+
+# Import Reference Data
+```{r}
+References <- Luciernaga:::InstrumentReferences(NumberDetectors = 64)
+
+#Check reference naming conventions
+# QC_ReferenceLibrary(FluorNameContains="PE", NumberDetectors = 64)
+
+TheseFluorophores <- c("BUV395", "Ghost Dye UV 450", "BUV496", "BUV563", "BUV615", "BUV661", "BUV737", "BUV805", "BV421", "Super Bright 436", "V450", "BV480", "BV570", "cFluor V547", "BV605", "BV650", "Super Bright 702", "BV750", "BV785", "Vio Bright B515", "Alexa Fluor 488", "RB545", "RB613", "RB670", "RB705", "RB744", "RB780", "PE", "RY586", "PE-Dazzle 594", "PE-Fire 640", "PE-Cy5", "PE-Fire 700", "PE-Fire 744", "PE-Cy7", "PE-Fire 810", "APC", "Alexa Fluor 647", "R718", "APC-Fire 750", "APC-Fire 810")
+
+Data <- References |> filter(Fluorophore %in% TheseFluorophores)
+Data <- Data |> select(-Instrument)
+Data <- Data |> pivot_wider(names_from="Detector", values_from="AdjustedY")
+
+Data$Fluorophore <- factor(Data$Fluorophore, levels=TheseFluorophores)
+Data <- Data |> arrange(Fluorophore)
+```
+
+Your data of signatures should look like this: 
+
+```{r}
+gt(Data)
+```
+
+# Cosine
+
+From here we can calculate the similarity matrix:
+
+```{r}
+SimilarityMatrix <- Luciernaga::Luciernaga_Cosine(Data, returntype="data",
+ rearrange=FALSE)
+SimilarityMatrix <- data.frame(SimilarityMatrix, check.names=FALSE)
+SimilarityMatrix <- tibble::rownames_to_column(SimilarityMatrix)
+```
+
+```{r}
+gt(SimilarityMatrix)
+```
+
+# Pheatmap
+
+```{r}
+#| warning: false
+#| message: false
+library(pheatmap)
+library(viridis)
+```
+
+```{r}
+TheYAxis <- SimilarityMatrix |> pull(rowname)
+TheMatrix <- SimilarityMatrix |> select(-rowname)
+TheMatrix <- as.matrix(TheMatrix)
+TheMatrix[!is.finite(TheMatrix)] <- NA
+
+TheMatrix[upper.tri(TheMatrix, diag = FALSE)] <- NA
+
+TheMatrix <- round(TheMatrix, 1)
+
+ColorMatrix <- matrix("white", nrow=nrow(TheMatrix), ncol=ncol(TheMatrix))
+diag(ColorMatrix) <- "black" 
+
+TheHeatmap <- pheatmap(
+  TheMatrix,
+  color = inferno(100),
+  na_col = "transparent",
+  cluster_rows = FALSE,
+  cluster_cols = FALSE,
+  main = "Similarity Matrix",
+  labels_row = TheYAxis,
+  display_numbers = TheMatrix,
+  number_color = ColorMatrix,
+  fontsize_number = 8
+)
+```
+
+# Kappa
+
+Or go separately from the Data to get the Complexity index, when exact = false:
+```{r}
+matrix <- Data[2:ncol(Data)]
+matrix <- as.matrix(matrix)
+kappa(matrix, exact=FALSE)
+```
+
+When exact=TRUE:
+```{r}
+matrix <- Data[2:ncol(Data)]
+matrix <- as.matrix(matrix)
+kappa(matrix, exact=TRUE)
+```
+
