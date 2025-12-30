@@ -85,7 +85,8 @@ TheHeatmap <- pheatmap(
   labels_row = TheYAxis,
   display_numbers = TheMatrix,
   number_color = ColorMatrix,
-  fontsize_number = 8
+  fontsize_number = 8,
+  border_color = NA
 )
 ```
 
